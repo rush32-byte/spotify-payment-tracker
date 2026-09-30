@@ -112,7 +112,7 @@ st.markdown(
 
 with st.sidebar:
   st.header("⚙️ Settings")
-  monthly_fee = st.number_input("Monthly Spotify Plan Cost (RM)", value=24.90)
+  monthly_fee = st.number_input("Monthly Spotify Plan Cost (RM)", value=28.0)
   expected_split = round(monthly_fee / 4, 2)
   st.info(f"💡 Each member owes:\n### **RM {expected_split} / month**")
 
