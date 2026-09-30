@@ -1,10 +1,6 @@
-import io
 import os
 import pandas as pd
 import streamlit as st
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
 
 st.set_page_config(
     page_title="Spotify Family Payment Tracker", page_icon="🎵", layout="wide"
@@ -69,6 +65,7 @@ st.markdown(
 )
 
 DATA_FILE = "spotify_payments.csv"
+RECEIPTS_DIR = "receipts"
 months = [
     "Jan",
     "Feb",
@@ -83,6 +80,10 @@ months = [
     "Nov",
     "Dec",
 ]
+
+# Ensure receipts folder exists locally
+if not os.path.exists(RECEIPTS_DIR):
+  os.makedirs(RECEIPTS_DIR)
 
 
 def load_data():
@@ -103,52 +104,10 @@ def load_data():
 if "payment_data" not in st.session_state:
   st.session_state.payment_data = load_data()
 
-
-# --- GOOGLE DRIVE UPLOAD HELPER ---
-def upload_to_drive(file_obj, filename, member, month):
-  try:
-    # Check if credentials exist in Streamlit secrets
-    if "gcp_service_account" not in st.secrets:
-      return (
-          False,
-          "Google Drive secrets not configured yet in Streamlit settings.",
-      )
-
-    creds_dict = dict(st.secrets["gcp_service_account"])
-    creds = service_account.Credentials.from_service_account_info(
-        creds_dict, scopes=["https://www.googleapis.com/auth/drive.file"]
-    )
-    service = build("drive", "v3", credentials=creds)
-
-    folder_id = st.secrets["google_drive"][
-        "folder_id"
-    ]  # Your Google Drive Folder ID
-
-    file_metadata = {
-        "name": f"{member}_{month}_{filename}",
-        "parents": [folder_id],
-    }
-
-    media = MediaIoBaseUpload(
-        io.BytesIO(file_obj.getvalue()),
-        mimetype=file_obj.type,
-        resumable=True,
-    )
-
-    file = (
-        service.files()
-        .create(body=file_metadata, media_body=media, fields="id, webViewLink")
-        .execute()
-    )
-    return True, file.get("webViewLink")
-  except Exception as e:
-    return False, str(e)
-
-
 st.title("🎵 Spotify Family Payment Tracker")
 st.markdown(
-    "Upload payment receipts to save them to Google Drive and update your"
-    " shared billing tracker."
+    "Upload payment receipts to save them locally and update your shared"
+    " billing tracker."
 )
 
 with st.sidebar:
@@ -180,24 +139,28 @@ with col1:
   selected_month = st.selectbox("Select Month:", months)
 
   if uploaded_file is not None:
-    if st.button("Confirm, Upload to Drive & Tick Payment"):
-      with st.spinner("Uploading receipt to Google Drive..."):
-        success, info = upload_to_drive(
-            uploaded_file, uploaded_file.name, selected_member, selected_month
-        )
+    if st.button("Confirm, Save Receipt & Tick Payment"):
+      # Save file locally into receipts folder
+      file_extension = os.path.splitext(uploaded_file.name)[1]
+      safe_filename = f"{selected_member}_{selected_month}{file_extension}"
+      file_path = os.path.join(RECEIPTS_DIR, safe_filename)
 
-      if success:
-        idx = st.session_state.payment_data[
-            st.session_state.payment_data["Member"] == selected_member
-        ].index[0]
-        st.session_state.payment_data.at[idx, selected_month] = True
-        st.session_state.payment_data.to_csv(DATA_FILE, index=False)
-        st.balloons()
-        st.success(f"Marked {selected_month} as PAID for {selected_member}!")
-        st.success(f"Receipt successfully saved to Google Drive: {info}")
-        # Removed st.rerun() temporarily so you can read any message if needed
-      else:
-        st.error(f"Google Drive Upload Failed Details: {info}")
+      with open(file_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+
+      # Update CSV tracker
+      idx = st.session_state.payment_data[
+          st.session_state.payment_data["Member"] == selected_member
+      ].index[0]
+      st.session_state.payment_data.at[idx, selected_month] = True
+      st.session_state.payment_data.to_csv(DATA_FILE, index=False)
+
+      st.balloons()
+      st.success(
+          f"Successfully saved receipt and marked {selected_month} as PAID for"
+          f" {selected_member}!"
+      )
+      st.rerun()
 
 with col2:
   st.subheader("📊 Summary Statistics")
