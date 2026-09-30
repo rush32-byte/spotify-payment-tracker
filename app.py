@@ -106,13 +106,13 @@ if "payment_data" not in st.session_state:
 
 st.title("🎵 Spotify Family Payment Tracker")
 st.markdown(
-    "Upload payment receipts, track monthly payments, and view your receipt"
-    " gallery."
+    "Upload payment receipts, track monthly payments, and filter receipts by"
+    " member."
 )
 
 with st.sidebar:
   st.header("⚙️ Settings")
-  monthly_fee = st.number_input("Monthly Spotify Plan Cost (RM)", value=28.00)
+  monthly_fee = st.number_input("Monthly Spotify Plan Cost (RM)", value=24.90)
   expected_split = round(monthly_fee / 4, 2)
   st.info(f"💡 Each member owes:\n### **RM {expected_split} / month**")
 
@@ -191,15 +191,29 @@ if not edited_df.equals(st.session_state.payment_data):
   st.session_state.payment_data.to_csv(DATA_FILE, index=False)
   st.rerun()
 
-# --- NEW: IN-APP RECEIPT GALLERY VIEWER ---
+# --- MEMBER-FILTERED RECEIPT GALLERY VIEWER ---
 st.markdown("---")
-st.subheader("📂 Uploaded Receipts Gallery")
+st.subheader("📂 Member Receipt Gallery")
 
 if os.path.exists(RECEIPTS_DIR):
-  receipt_files = os.listdir(RECEIPTS_DIR)
-  if receipt_files:
+  all_receipt_files = os.listdir(RECEIPTS_DIR)
+
+  # Select which member's receipts to view
+  members_list = st.session_state.payment_data["Member"].tolist()
+  gallery_member = st.selectbox(
+      "View receipts for member:", members_list, key="gallery_member_select"
+  )
+
+  # Filter files matching the selected member
+  member_receipts = [
+      f for f in all_receipt_files if f.startswith(f"{gallery_member}_")
+  ]
+
+  if member_receipts:
     selected_receipt = st.selectbox(
-        "Select a receipt file to preview:", receipt_files
+        f"Select {gallery_member}'s receipt file:",
+        member_receipts,
+        key="gallery_receipt_select",
     )
     if selected_receipt:
       file_path = os.path.join(RECEIPTS_DIR, selected_receipt)
@@ -215,10 +229,35 @@ if os.path.exists(RECEIPTS_DIR):
               data=f,
               file_name=selected_receipt,
           )
+
+      # Delete button specific to that receipt
+      if st.button("🗑️️ Delete Selected Receipt", key="delete_receipt_btn"):
+        if os.path.exists(file_path):
+          os.remove(file_path)
+
+        try:
+          name_part = os.path.splitext(selected_receipt)[0]
+          parts = name_part.split("_")
+          if len(parts) >= 2:
+            m_name, m_month = parts[0], parts[1]
+            if (
+                m_name in st.session_state.payment_data["Member"].values
+                and m_month in months
+            ):
+              idx = st.session_state.payment_data[
+                  st.session_state.payment_data["Member"] == m_name
+              ].index[0]
+              st.session_state.payment_data.at[idx, m_month] = False
+              st.session_state.payment_data.to_csv(DATA_FILE, index=False)
+        except Exception:
+          pass
+
+        st.success(
+            f"Successfully deleted {selected_receipt} and updated payment"
+            " status!"
+        )
+        st.rerun()
   else:
-    st.info(
-        "No receipts uploaded yet. Once you upload receipts, they will appear"
-        " here!"
-    )
+    st.info(f"No receipts uploaded yet for {gallery_member}.")
 else:
   st.info("Receipts folder not found.")
