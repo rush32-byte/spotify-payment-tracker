@@ -106,8 +106,8 @@ if "payment_data" not in st.session_state:
 
 st.title("🎵 Spotify Family Payment Tracker")
 st.markdown(
-    "Upload payment receipts to save them locally and update your shared"
-    " billing tracker."
+    "Upload payment receipts, track monthly payments, and view your receipt"
+    " gallery."
 )
 
 with st.sidebar:
@@ -140,7 +140,6 @@ with col1:
 
   if uploaded_file is not None:
     if st.button("Confirm, Save Receipt & Tick Payment"):
-      # Save file locally into receipts folder
       file_extension = os.path.splitext(uploaded_file.name)[1]
       safe_filename = f"{selected_member}_{selected_month}{file_extension}"
       file_path = os.path.join(RECEIPTS_DIR, safe_filename)
@@ -148,7 +147,6 @@ with col1:
       with open(file_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
 
-      # Update CSV tracker
       idx = st.session_state.payment_data[
           st.session_state.payment_data["Member"] == selected_member
       ].index[0]
@@ -192,3 +190,35 @@ if not edited_df.equals(st.session_state.payment_data):
   st.session_state.payment_data = edited_df
   st.session_state.payment_data.to_csv(DATA_FILE, index=False)
   st.rerun()
+
+# --- NEW: IN-APP RECEIPT GALLERY VIEWER ---
+st.markdown("---")
+st.subheader("📂 Uploaded Receipts Gallery")
+
+if os.path.exists(RECEIPTS_DIR):
+  receipt_files = os.listdir(RECEIPTS_DIR)
+  if receipt_files:
+    selected_receipt = st.selectbox(
+        "Select a receipt file to preview:", receipt_files
+    )
+    if selected_receipt:
+      file_path = os.path.join(RECEIPTS_DIR, selected_receipt)
+      if selected_receipt.lower().endswith((".png", ".jpg", ".jpeg")):
+        st.image(
+            file_path, caption=selected_receipt, use_container_width=True
+        )
+      else:
+        st.info(f"Selected file: {selected_receipt} (PDF format)")
+        with open(file_path, "rb") as f:
+          st.download_button(
+              label=f"Download {selected_receipt}",
+              data=f,
+              file_name=selected_receipt,
+          )
+  else:
+    st.info(
+        "No receipts uploaded yet. Once you upload receipts, they will appear"
+        " here!"
+    )
+else:
+  st.info("Receipts folder not found.")
