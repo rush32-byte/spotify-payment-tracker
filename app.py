@@ -194,19 +194,10 @@ with col1:
         st.session_state.payment_data.to_csv(DATA_FILE, index=False)
         st.balloons()
         st.success(f"Marked {selected_month} as PAID for {selected_member}!")
-        st.success(f"Receipt successfully saved to Google Drive!")
-        st.rerun()
+        st.success(f"Receipt successfully saved to Google Drive: {info}")
+        # Removed st.rerun() temporarily so you can read any message if needed
       else:
-        # Fallback if secrets aren't set up yet, still ticks the payment locally
-        idx = st.session_state.payment_data[
-            st.session_state.payment_data["Member"] == selected_member
-        ].index[0]
-        st.session_state.payment_data.at[idx, selected_month] = True
-        st.session_state.payment_data.to_csv(DATA_FILE, index=False)
-        st.warning(
-            f"Ticked payment locally, but Drive upload skipped: {info}"
-        )
-        st.rerun()
+        st.error(f"Google Drive Upload Failed Details: {info}")
 
 with col2:
   st.subheader("📊 Summary Statistics")
